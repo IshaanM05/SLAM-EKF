@@ -1,0 +1,2 @@
+source;share/motion_update_pkg/environment/ament_prefix_path.sh
+source;share/motion_update_pkg/environment/path.sh

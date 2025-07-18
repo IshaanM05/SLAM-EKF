@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>motion_update_pkg</name>
+  <version>0.0.1</version>
+  <description>Motion update and visualization nodes for EKF SLAM using IMU, wheel encoders, and cones.</description>
+
+  <maintainer email="ishaanmondal2005@gmail.com">ishaan</maintainer>
+  <license>Apache 2.0</license>
+
+  <!-- Build tools -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Build and run dependencies -->
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>eufs_msgs</depend>
+  <depend>dv_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>nav_msgs</depend>
+  <depend>eigen3_cmake_module</depend>
+  <depend>ament_index_cpp</depend>
+  <depend>eigen</depend>
+
+  <build_depend>tf2_geometry_msgs</build_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>rosbag2</exec_depend>
+  <exec_depend>rosbag2_cpp</exec_depend>
+  <exec_depend>rosbag2_transport</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+
+
+  <!-- Test dependencies -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <!-- Export section -->
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

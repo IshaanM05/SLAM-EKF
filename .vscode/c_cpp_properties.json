@@ -1,0 +1,35 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/ishaan/ros2_ws/install/tutorial_interfaces/include/**",
+        "/home/ishaan/ros2_ws/install/turtlesim/include/**",
+        "/home/ishaan/ros2_ws/install/examples_rclcpp_cbg_executor/include/**",
+        "/home/ishaan/eufs_ws/install/eufs_models/include/**",
+        "/home/ishaan/eufs_ws/install/eufs_msgs/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/ishaan/ros2_ws/motion_update_pkg/include/**",
+        "/home/ishaan/ros2_ws/src/examples/rclcpp/composition/minimal_composition/include/**",
+        "/home/ishaan/ros2_ws/src/examples/rclcpp/executors/cbg_executor/include/**",
+        "/home/ishaan/ros2_ws/src/examples/rclcpp/wait_set/include/**",
+        "/home/ishaan/ros2_ws/src/motion_update_pkg/include/**",
+        "/home/ishaan/ros2_ws/src/motion_update_pkg3/include/**",
+        "/home/ishaan/ros2_ws/src/robotic_arm_description/include/**",
+        "/home/ishaan/ros2_ws/src/ros_tutorials/turtlesim/include/**",
+        "/home/ishaan/ros2_ws/src/tutorial_interfaces/include/**",
+        "include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

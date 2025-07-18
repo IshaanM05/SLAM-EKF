@@ -1,0 +1,88 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-ea09cd2a1f42be0f0fda.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "motion_update_pkg",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "motion_update_node::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-motion_update_node-Debug-4b376492b7da34ec5ddb.json",
+					"name" : "motion_update_node",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "motion_update_pkg_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-motion_update_pkg_uninstall-Debug-5fb83e87f14be4524e41.json",
+					"name" : "motion_update_pkg_uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "pose_visualizer_node::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-pose_visualizer_node-Debug-9a2a66b02d2bb261c274.json",
+					"name" : "pose_visualizer_node",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-Debug-6158c146e675f4998b3d.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/ishaan/ros2_ws/src/motion_update_pkg/build",
+		"source" : "/home/ishaan/ros2_ws/src/motion_update_pkg"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}

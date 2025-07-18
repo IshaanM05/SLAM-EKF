@@ -1,0 +1,11 @@
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/uninstall.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/motion_update_pkg_uninstall.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/motion_update_node.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/pose_visualizer_node.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/test.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/edit_cache.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/rebuild_cache.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/list_install_components.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/install.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/install/local.dir
+/home/ishaan/ros2_ws/src/motion_update_pkg/build/CMakeFiles/install/strip.dir
