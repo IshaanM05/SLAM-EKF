@@ -15,14 +15,14 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        # Launch EKF Localization Node
+        # Launch EKF Localization Node - NO REMAPPING
         Node(
             package='motion_update_pkg',
-            executable='motion_update_node',
+            executable='ekf_localization_node',
             name='ekf_localization_node',
             output='screen'
         ),
-
+        
         # Launch EKF Visualizer Node
         Node(
             package='motion_update_pkg',
@@ -30,7 +30,7 @@ def generate_launch_description():
             name='ekf_visualizer_node',
             output='screen'
         ),
-
+        
         # Play the rosbag file (in loop for debugging)
         ExecuteProcess(
             cmd=['ros2', 'bag', 'play', rosbag_file, '--loop'],

@@ -12,14 +12,14 @@ public:
     EKFVisualizer() : Node("ekf_visualizer_node")
     {
         ekf_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
-            "/ekf/pose", 10,
+            "ekf/pose", 10,
             std::bind(&EKFVisualizer::ekf_callback, this, std::placeholders::_1));
 
         gt_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
             "/ground_truth/state", 10,
             std::bind(&EKFVisualizer::gt_callback, this, std::placeholders::_1));
 
-        marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("/ekf/pose_marker", 10);
+        marker_pub_ = this->create_publisher<visualization_msgs::msg::Marker>("ekf/pose_marker", 10);
     }
 
 private:

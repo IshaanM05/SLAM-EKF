@@ -2,36 +2,38 @@
 #include <Eigen/Geometry>
 #include "rclcpp/rclcpp.hpp"
 #include <vector>
+#include <cmath>
 #include "dv_msgs/msg/cone.hpp"
 #include "dv_msgs/msg/indexed_cone.hpp"
 #include <numeric>
-#include "motion_update_pkg/load_landmarks.hpp"
+
 using Eigen::MatrixXd;
 using Eigen::Matrix2d;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
 using Eigen::VectorXi;
-
 using namespace std;
+
 struct JacobMatrices {
     MatrixXd zp, Hv, Hf, Sf;
 };
 
 double normalize_angle(double angle) {
     const double PI = std::acos(-1);  
-    angle =
-        std::fmod(angle, 2 * PI);  
+    angle = std::fmod(angle, 2 * PI);  
   
     // Shift angle to be within the range [-PI, PI)
     if (angle >= PI) {
-      angle -= 2 * PI;
+        angle -= 2 * PI;
     } else if (angle < -PI) {
-      angle += 2 * PI;
+        angle += 2 * PI;
     }
   
     return angle;
 }
+
+// DEFINE the global variable here with hardcoded landmarks
 std::vector<Eigen::Vector3d> known_landmarks = {
     // Blue cones (color code = 0)
     Eigen::Vector3d(-3.7219, -0.7307, 0),
@@ -111,10 +113,7 @@ std::vector<Eigen::Vector3d> known_landmarks = {
     Eigen::Vector3d(3.0133, -1.9065, 2),
 };
 
-
-JacobMatrices compute_jacobians(const std::vector<double>& mu_t, const Vector3d& xf, const Matrix2d& Pf, const Eigen::Matrix2d& Q_cov)
- {
-
+JacobMatrices compute_jacobians(const std::vector<double>& mu_t, const Vector3d& xf, const Matrix2d& Pf, const Eigen::Matrix2d& Q_cov) {
     JacobMatrices ans;
 
     // Compute the relative position between the robot and the landmark
@@ -146,7 +145,6 @@ JacobMatrices compute_jacobians(const std::vector<double>& mu_t, const Vector3d&
 }
 
 bool performICTest(const std::vector<double> &mu_t, int lm_id, const Eigen::Vector2d &z, const Eigen::Matrix2d &Q_cov) {
-
     Eigen::Vector3d xf = known_landmarks[lm_id]; // Landmark position
     Eigen::Matrix2d Pf;
     Pf << 0.001, 0.0, 0.0, 0.001; // Landmark covariance
@@ -163,10 +161,9 @@ bool performICTest(const std::vector<double> &mu_t, int lm_id, const Eigen::Vect
 }
 
 double computeObservationLikelihood(const std::vector<double> &mu_t, int lm_id, const Eigen::Vector2d &z, const Eigen::Matrix2d &Q_cov) {
-
-    Eigen::Vector3d xf=known_landmarks[lm_id]; // Landmark position
+    Eigen::Vector3d xf = known_landmarks[lm_id]; // Landmark position
     Eigen::Matrix2d Pf;
-    Pf <<0.001,0.0,0.0,0.001; // Landmark covariance
+    Pf << 0.001, 0.0, 0.0, 0.001; // Landmark covariance
 
     JacobMatrices jm = compute_jacobians(mu_t, xf, Pf, Q_cov);
 
@@ -175,7 +172,6 @@ double computeObservationLikelihood(const std::vector<double> &mu_t, int lm_id, 
 
     double den = 2.0 * M_PI * std::sqrt(jm.Sf.determinant());
     if (den <= 0.0 || std::isnan(den)) {
-        // RCLCPP_INFO_STREAM(this->get_logger(), "Invalid denominator. Returning small value.");
         return 1e-12;
     }
 
@@ -188,26 +184,30 @@ double computeObservationLikelihood(const std::vector<double> &mu_t, int lm_id, 
 std::vector<int> performDataAssociation(
     const std::vector<double>& mu_t,
     const std::vector<dv_msgs::msg::IndexedCone>& conesFromPerception,
-    const Eigen::Matrix2d& Q_cov){ 
+    const Eigen::Matrix2d& Q_cov) { 
 
     std::vector<int> matchedConeIndices;
 
     std::vector<size_t> obs_indices(conesFromPerception.size());
     std::iota(obs_indices.begin(), obs_indices.end(), 0);
-    // std::sort(obs_indices.begin(), obs_indices.end(), [&](size_t a, size_t b) {
-    //     return conesFromPerception[a].range < conesFromPerception[b].range;
-    // });
+
     for (size_t obs_idx : obs_indices) {
         const auto &obs = conesFromPerception[obs_idx];
-        Eigen::Vector2d z(obs.location.x, obs.location.y);
+        
+        // Convert cone position to range/bearing format
+        double dx = obs.location.x;
+        double dy = obs.location.y;
+        double range = std::sqrt(dx * dx + dy * dy);
+        double bearing = std::atan2(dy, dx);
+        
+        Eigen::Vector2d z(range, bearing);
 
         int best_landmark = -1;
         double best_likelihood = 0.0;
 
         // Filter landmarks using IC test and compute likelihood
-        for (int lm_id = 0; lm_id < known_landmarks.size(); ++lm_id) {
-
-            if (obs.color != known_landmarks[lm_id](2)) {
+        for (int lm_id = 0; lm_id < static_cast<int>(known_landmarks.size()); ++lm_id) {
+            if (obs.color != static_cast<uint8_t>(known_landmarks[lm_id](2))) {
                 continue;
             }
 
@@ -221,15 +221,14 @@ std::vector<int> performDataAssociation(
                 }
             }   
         }
+        
         // If no suitable landmark found or likelihood is below the threshold, mark as new landmark
-        if (best_landmark == -1 || best_likelihood < 0.005) matchedConeIndices.push_back(-1); // New landmark
-        else matchedConeIndices.push_back(best_landmark);
+        if (best_landmark == -1 || best_likelihood < 0.005) {
+            matchedConeIndices.push_back(-1); // New landmark
+        } else {
+            matchedConeIndices.push_back(best_landmark);
+        }
     }
-    // std::ostringstream oss;
-    // oss << "Matched Cone Indices: ";
-    // for (const auto& index : matchedConeIndices) {
-    //     oss << index << " ";
-    // }
 
     return matchedConeIndices;
 }

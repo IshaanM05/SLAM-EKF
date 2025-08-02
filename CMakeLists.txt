@@ -7,7 +7,6 @@ endif()
 
 # Find required packages
 find_package(ament_cmake REQUIRED)
-find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -21,49 +20,42 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
-# Include directories
-include_directories(include ${EIGEN3_INCLUDE_DIRS})
+# Include directories (removed include since directory doesn't exist)
+include_directories(${EIGEN3_INCLUDE_DIRS})
 
-# Build utility library
-add_library(load_landmarks STATIC src/load_landmarks.cpp)
-target_include_directories(load_landmarks PUBLIC include)
-
-# Nodes
-add_executable(motion_update_node src/motion_update_node.cpp)
-target_link_libraries(motion_update_node load_landmarks)
-
+# Build executables
 add_executable(ekf_visualizer_node src/ekf_visualizer_node.cpp)
 
-# Dependencies
-ament_target_dependencies(motion_update_node
-  rclcpp std_msgs sensor_msgs geometry_msgs visualization_msgs
-  eufs_msgs dv_msgs tf2 tf2_ros tf2_geometry_msgs nav_msgs
+# Compile data_assoc_trainee.cpp directly with ekf_localization_node
+add_executable(ekf_localization_node 
+  src/ekf_localization_node.cpp
+  src/data_assoc_trainee.cpp
 )
 
+# Dependencies for executables
 ament_target_dependencies(ekf_visualizer_node
   rclcpp std_msgs sensor_msgs geometry_msgs visualization_msgs
-  tf2 tf2_ros tf2_geometry_msgs nav_msgs
-  eufs_msgs dv_msgs
+  tf2 tf2_ros tf2_geometry_msgs nav_msgs eufs_msgs dv_msgs Eigen3
 )
 
-ament_target_dependencies(load_landmarks
-  rclcpp Eigen3
+ament_target_dependencies(ekf_localization_node
+  rclcpp
+  geometry_msgs
+  nav_msgs
+  sensor_msgs
+  tf2_ros
+  tf2_geometry_msgs
+  tf2
+  Eigen3
+  dv_msgs
+  eufs_msgs  # ADDED: Required for WheelSpeedsStamped message
 )
 
 # Installation
 install(TARGETS
-  motion_update_node
   ekf_visualizer_node
-  load_landmarks
+  ekf_localization_node
   DESTINATION lib/${PROJECT_NAME}
-)
-
-install(DIRECTORY include/
-  DESTINATION include
-)
-
-install(DIRECTORY data/
-  DESTINATION share/${PROJECT_NAME}/data
 )
 
 # Install launch files
@@ -71,11 +63,10 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Install rosbag folder (optional, if you want it deployed with the package)
+# Install rosbag folder
 install(DIRECTORY rosbag_localisation
   DESTINATION share/${PROJECT_NAME}
 )
-
 
 # Linting
 if(BUILD_TESTING)

@@ -1,5 +1,4 @@
 // ekf_localization_node.cpp
-
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -11,13 +10,14 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <cmath>
+#include <iostream>
 
 #include "dv_msgs/msg/indexed_track.hpp"
+#include "dv_msgs/msg/indexed_cone.hpp"
 #include "dv_msgs/msg/single_range_bearing_observation.hpp"
-#include "dv_msgs/msg/vcu2_ai_speeds.hpp"
+#include "eufs_msgs/msg/wheel_speeds_stamped.hpp"
 
-#include "motion_update_pkg/load_landmarks.hpp"
-
+// External symbols - defined in data_assoc_trainee.cpp
 extern std::vector<Eigen::Vector3d> known_landmarks;
 extern std::vector<int> performDataAssociation(
     const std::vector<double>& mu_t,
@@ -27,13 +27,23 @@ extern std::vector<int> performDataAssociation(
 class EKFLocalizationNode : public rclcpp::Node {
 public:
     EKFLocalizationNode() : Node("ekf_localization_node") {
-        this->declare_parameter("use_sim_time", true);
-        initializeEKF();
+        std::cout << "DEBUG: Constructor called with new code!" << std::endl;
+        RCLCPP_ERROR(this->get_logger(), "CONSTRUCTOR DEBUG - NEW VERSION");
+        
+        // Only declare parameter if not already declared
+        if (!this->has_parameter("use_sim_time")) {
+            this->declare_parameter("use_sim_time", true);
+        }
+        
+        this->get_logger().set_level(rclcpp::Logger::Level::Info);
+        
+        initialiseEKF();
         setupROS();
-        RCLCPP_INFO(this->get_logger(), "✅ EKF Localization Node initialized");
+        RCLCPP_INFO(this->get_logger(), "EKF Localization Node initialized");
     }
 
 private:
+    // EKF state
     Eigen::VectorXd mu_;
     Eigen::MatrixXd Sigma_;
     double sigma_vx_ = 0.1, sigma_vy_ = 0.1, sigma_phi_ = 0.1;
@@ -42,17 +52,18 @@ private:
     bool first_measurement_ = true;
 
     double vx_ = 0.0, vy_ = 0.0, phi_dot_ = 0.0;
+    bool has_wheel_data_ = false, has_imu_data_ = false;
 
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_pub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
-    rclcpp::Subscription<dv_msgs::msg::VCU2AISpeeds>::SharedPtr wheel_sub_;
+    rclcpp::Subscription<eufs_msgs::msg::WheelSpeedsStamped>::SharedPtr wheel_sub_;
     rclcpp::Subscription<dv_msgs::msg::IndexedTrack>::SharedPtr perception_sub_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
-    void initializeEKF() {
-        mu_ = Eigen::VectorXd::Zero(3);
-        Sigma_ = Eigen::MatrixXd::Identity(3, 3) * 0.1;
+    void initialiseEKF() {
+        mu_.setZero(3);
+        Sigma_ = Eigen::MatrixXd::Identity(3,3) * 0.1;
         last_time_ = this->now();
     }
 
@@ -63,7 +74,7 @@ private:
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
             "/imu", 10, std::bind(&EKFLocalizationNode::imuCallback, this, std::placeholders::_1));
 
-        wheel_sub_ = this->create_subscription<dv_msgs::msg::VCU2AISpeeds>(
+        wheel_sub_ = this->create_subscription<eufs_msgs::msg::WheelSpeedsStamped>(
             "/ros_can/wheel_speeds", 10, std::bind(&EKFLocalizationNode::wheelCallback, this, std::placeholders::_1));
 
         perception_sub_ = this->create_subscription<dv_msgs::msg::IndexedTrack>(
@@ -73,46 +84,85 @@ private:
     }
 
     void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+        RCLCPP_INFO(this->get_logger(), "IMU callback received");
         phi_dot_ = msg->angular_velocity.z;
-        if (!first_measurement_) {
+        has_imu_data_ = true;
+
+        if (has_wheel_data_ && !first_measurement_) {
+            RCLCPP_INFO(this->get_logger(), "Triggering motion update from IMU");
             motionUpdate(msg->header.stamp);
+        } else {
+            RCLCPP_WARN(this->get_logger(), "Motion update skipped: wheel=%d, first=%d", 
+                       has_wheel_data_, first_measurement_);
         }
     }
 
-    void wheelCallback(const dv_msgs::msg::VCU2AISpeeds::SharedPtr msg) {
-        vx_ = (msg->fl_wheel_speed + msg->fr_wheel_speed) / 2.0;
+    void wheelCallback(const eufs_msgs::msg::WheelSpeedsStamped::SharedPtr msg) {
+        RCLCPP_ERROR(this->get_logger(), "WHEEL CALLBACK TRIGGERED - SUCCESS!");
+        RCLCPP_INFO(this->get_logger(), "Wheel callback received");
+        
+        // Use correct field names from eufs_msgs
+        vx_ = (msg->speeds.lf_speed + msg->speeds.rf_speed) / 2.0;
         vy_ = 0.0;
-        auto now = this->get_clock()->now();
-        if (!first_measurement_) {
-            motionUpdate(now);
+        has_wheel_data_ = true;
+
+        // CRITICAL FIX: Use message timestamp instead of current time
+        if (has_imu_data_ && !first_measurement_) {
+            RCLCPP_INFO(this->get_logger(), "Triggering motion update from wheel");
+            motionUpdate(msg->header.stamp);  // FIXED: Use msg->header.stamp
+        } else {
+            RCLCPP_WARN(this->get_logger(), "Motion update skipped from wheel: imu=%d, first=%d", 
+                       has_imu_data_, first_measurement_);
         }
     }
 
     void perceptionCallback(const dv_msgs::msg::IndexedTrack::SharedPtr msg) {
-        if (msg->cones.empty()) return;
+        if (msg->track.empty()) return;
+
+        // Force first measurement completion if needed
+        if (first_measurement_) {
+            first_measurement_ = false;
+            RCLCPP_WARN(this->get_logger(), "Forced first measurement completion - starting EKF");
+        }
 
         Eigen::Matrix2d Q;
-        Q << sigma_r_ * sigma_r_, 0,
-             0, sigma_theta_ * sigma_theta_;
+        Q << sigma_r_*sigma_r_, 0,
+             0, sigma_theta_*sigma_theta_;
 
         std::vector<double> mu_vec = {mu_(0), mu_(1), mu_(2)};
-        auto matches = performDataAssociation(mu_vec, msg->cones, Q);
+        auto matches = performDataAssociation(mu_vec, msg->track, Q);
 
         std::vector<dv_msgs::msg::SingleRangeBearingObservation> obs;
-        for (const auto& cone : msg->cones) {
+        obs.reserve(msg->track.size());
+
+        for (const auto &cone : msg->track) {
             dv_msgs::msg::SingleRangeBearingObservation o;
-            o.range = cone.location.x;
-            o.yaw = cone.location.y;
-            o.color = cone.color;
+            double dx = cone.location.x;
+            double dy = cone.location.y;
+
+            o.range = std::sqrt(dx*dx + dy*dy);
+            o.yaw = std::atan2(dy, dx);
+            o.pitch = 0.0;
+            o.id = static_cast<int32_t>(cone.index);
+
             obs.push_back(o);
         }
 
-        measurementUpdate(obs, matches, msg->header.stamp);
+        measurementUpdate(obs, matches, this->now());
     }
 
-    void motionUpdate(const rclcpp::Time& time) {
+    void motionUpdate(const rclcpp::Time &time) {
+        RCLCPP_INFO(this->get_logger(), "Motion update called");
+        
         double dt = (time - last_time_).seconds();
+        
+        // FIXED: Use correct format specifiers for timestamp debugging
+        RCLCPP_INFO(this->get_logger(), "Timestamps - Current: %.3f.%09ld, Last: %.3f.%09ld, dt: %.6f", 
+                    time.seconds(), time.nanoseconds() % 1000000000,
+                    last_time_.seconds(), last_time_.nanoseconds() % 1000000000, dt);
+        
         if (dt <= 0.0 || dt > 1.0) {
+            RCLCPP_WARN(this->get_logger(), "Motion update rejected: dt=%.6f", dt);
             last_time_ = time;
             return;
         }
@@ -120,13 +170,13 @@ private:
         double phi = mu_(2);
 
         Eigen::Matrix3d Gt;
-        Gt << 1, 0, (vx_ * sin(phi) - vy_ * cos(phi)) * dt,
-              0, 1, (vx_ * cos(phi) + vy_ * sin(phi)) * dt,
+        Gt << 1, 0, (vx_ * std::sin(phi) - vy_ * std::cos(phi)) * dt,
+              0, 1, (vx_ * std::cos(phi) + vy_ * std::sin(phi)) * dt,
               0, 0, 1;
 
         Eigen::Matrix3d Vt;
-        Vt << cos(phi) * dt, -sin(phi) * dt, 0,
-              sin(phi) * dt,  cos(phi) * dt, 0,
+        Vt << std::cos(phi) * dt, -std::sin(phi) * dt, 0,
+              std::sin(phi) * dt,  std::cos(phi) * dt, 0,
               0, 0, dt;
 
         Eigen::Matrix3d M;
@@ -137,21 +187,23 @@ private:
         Sigma_ = Gt * Sigma_ * Gt.transpose() + Vt * M * Vt.transpose();
 
         mu_ += Eigen::Vector3d(
-            cos(phi) * vx_ * dt - sin(phi) * vy_ * dt,
-            sin(phi) * vx_ * dt + cos(phi) * vy_ * dt,
+            std::cos(phi) * vx_ * dt - std::sin(phi) * vy_ * dt,
+            std::sin(phi) * vx_ * dt + std::cos(phi) * vy_ * dt,
             phi_dot_ * dt
         );
 
         mu_(2) = normalizeAngle(mu_(2));
         last_time_ = time;
         first_measurement_ = false;
+        
+        RCLCPP_INFO(this->get_logger(), "Motion update completed, publishing pose");
         publishState(time);
     }
 
-    void measurementUpdate(
-        const std::vector<dv_msgs::msg::SingleRangeBearingObservation>& obs,
-        const std::vector<int>& matches,
-        const rclcpp::Time& stamp) {
+    void measurementUpdate(const std::vector<dv_msgs::msg::SingleRangeBearingObservation>& obs,
+                          const std::vector<int>& matches,
+                          const rclcpp::Time& stamp) {
+        RCLCPP_INFO(this->get_logger(), "Measurement update called with %zu observations", obs.size());
 
         for (size_t i = 0; i < obs.size(); ++i) {
             if (matches[i] < 0) continue;
@@ -185,10 +237,13 @@ private:
             Sigma_ = (Eigen::Matrix3d::Identity() - K * H) * Sigma_;
         }
 
+        RCLCPP_INFO(this->get_logger(), "Measurement update completed, publishing pose");
         publishState(stamp);
     }
 
     void publishState(const rclcpp::Time& stamp) {
+        RCLCPP_INFO(this->get_logger(), "Publishing pose: (%.2f, %.2f, %.2f)", mu_(0), mu_(1), mu_(2));
+        
         nav_msgs::msg::Odometry odom;
         odom.header.stamp = stamp;
         odom.header.frame_id = "map";
@@ -204,13 +259,13 @@ private:
         pose.header = odom.header;
         pose.pose = odom.pose;
 
-        // Set non-zero covariance to avoid RViz ignoring it
         for (int i = 0; i < 36; ++i) pose.pose.covariance[i] = 0.0;
-        pose.pose.covariance[0] = 0.1;   // x
-        pose.pose.covariance[7] = 0.1;   // y
-        pose.pose.covariance[35] = 0.05; // yaw
+        pose.pose.covariance[0] = Sigma_(0, 0);
+        pose.pose.covariance[7] = Sigma_(1, 1);
+        pose.pose.covariance[35] = Sigma_(2, 2);
 
         pose_pub_->publish(pose);
+        RCLCPP_INFO(this->get_logger(), "Pose published to /ekf/pose");
 
         geometry_msgs::msg::TransformStamped tf;
         tf.header = odom.header;
@@ -220,8 +275,6 @@ private:
         tf.transform.translation.z = 0.0;
         tf.transform.rotation = odom.pose.pose.orientation;
         tf_broadcaster_->sendTransform(tf);
-
-        RCLCPP_INFO(this->get_logger(), "✅ Published /ekf/pose at (%.2f, %.2f, %.2f)", mu_(0), mu_(1), mu_(2));
     }
 
     double normalizeAngle(double angle) {
@@ -233,11 +286,15 @@ private:
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    std::string csv_path = "/home/ishaan/ros2_ws/src/motion_update_pkg/data/small_track.csv";
-    known_landmarks = loadLandmarksFromCSV(csv_path);
+    
+    std::cout << "Using hardcoded landmarks from data_assoc_trainee.cpp" << std::endl;
+    
     auto node = std::make_shared<EKFLocalizationNode>();
     rclcpp::spin(node);
     rclcpp::shutdown();
     return 0;
 }
+
+
+
 
